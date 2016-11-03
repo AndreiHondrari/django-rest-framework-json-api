@@ -6,10 +6,13 @@ from rest_framework_json_api.renderers import JSONRenderer
 
 pytestmark = pytest.mark.django_db
 
+
 class ResourceSerializer(serializers.ModelSerializer):
     version = serializers.SerializerMethodField()
+
     def get_version(self, obj):
         return '1.0.0'
+
     class Meta:
         fields = ('username',)
         meta_fields = ('version',)
@@ -38,6 +41,40 @@ def test_build_json_resource_obj():
         serializer.fields, resource, resource_instance, 'user') == output
 
 
+class ResourceWithLookupFieldSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        fields = ('username',)
+        model = get_user_model()
+        lookup_field = 'username'
+
+
+def test_build_json_resource_obj_id_as_lookup_field():
+    """
+    Makes sure that the resource object id is the same as the lookup field from the serializer.
+    """
+
+    resource = {
+        'pk': 1,
+        'username': 'Andrew',
+    }
+
+    serializer = ResourceWithLookupFieldSerializer(data={'username': 'Andrew'})
+    serializer.is_valid()
+    resource_instance = serializer.save()
+
+    output = {
+        'type': 'user',
+        'id': 'Andrew',
+        'attributes': {
+            'username': 'Andrew'
+        },
+    }
+
+    assert JSONRenderer.build_json_resource_obj(
+        serializer.fields, resource, resource_instance, 'user', id_replacement=serializer.Meta.lookup_field) == output
+
+
 def test_extract_attributes():
     fields = {
         'id': serializers.Field(),
@@ -53,8 +90,9 @@ def test_extract_attributes():
     assert sorted(JSONRenderer.extract_attributes(fields, {})) == sorted(
         {'username': ''}), 'Should not extract read_only fields on empty serializer'
 
+
 def test_extract_meta():
-    serializer = ResourceSerializer(data={'username': 'jerel', 'version':'1.0.0'})
+    serializer = ResourceSerializer(data={'username': 'jerel', 'version': '1.0.0'})
     serializer.is_valid()
     expected = {
         'version': '1.0.0',
@@ -86,12 +124,14 @@ def test_extract_root_meta():
     }
     assert JSONRenderer.extract_root_meta(serializer, {}) == expected
 
+
 def test_extract_root_meta_many():
     serializer = ExtractRootMetaResourceSerializer(many=True)
     expected = {
       'foo': 'meta-many-value'
     }
     assert JSONRenderer.extract_root_meta(serializer, {}) == expected
+
 
 def test_extract_root_meta_invalid_meta():
     def get_root_meta(resource, many):

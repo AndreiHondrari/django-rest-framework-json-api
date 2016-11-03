@@ -381,10 +381,15 @@ class JSONRenderer(renderers.JSONRenderer):
         return data
 
     @staticmethod
-    def build_json_resource_obj(fields, resource, resource_instance, resource_name):
+    def build_json_resource_obj(fields, resource, resource_instance, resource_name, id_replacement=None):
+        if id_replacement is not None and id_replacement in resource:
+            resource_object_id = resource.get(id_replacement)
+        else:
+            resource_object_id = encoding.force_text(resource_instance.pk) if resource_instance is not None else None
+
         resource_data = [
             ('type', resource_name),
-            ('id', encoding.force_text(resource_instance.pk) if resource_instance else None),
+            ('id', resource_object_id),
             ('attributes', JSONRenderer.extract_attributes(fields, resource)),
         ]
         relationships = JSONRenderer.extract_relationships(fields, resource, resource_instance)
@@ -477,7 +482,9 @@ class JSONRenderer(renderers.JSONRenderer):
                         json_api_included.extend(included)
             else:
                 resource_instance = serializer.instance
-                json_api_data = self.build_json_resource_obj(fields, serializer_data, resource_instance, resource_name)
+                json_api_data = self.build_json_resource_obj(
+                    fields, serializer_data, resource_instance, resource_name,
+                )
 
                 meta = self.extract_meta(serializer, serializer_data)
                 if meta:
