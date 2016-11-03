@@ -27,7 +27,7 @@ class Blog(BaseModel):
 
 @python_2_unicode_compatible
 class Author(BaseModel):
-    name = models.CharField(max_length=50)
+    name = models.CharField(max_length=50, unique=True)
     email = models.EmailField()
 
     def __str__(self):
@@ -46,7 +46,7 @@ class AuthorBio(BaseModel):
 @python_2_unicode_compatible
 class Entry(BaseModel):
     blog = models.ForeignKey(Blog)
-    headline = models.CharField(max_length=255)
+    headline = models.CharField(max_length=255, unique=True)
     body_text = models.TextField(null=True)
     pub_date = models.DateField(null=True)
     mod_date = models.DateField(null=True)

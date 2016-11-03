@@ -103,7 +103,10 @@ class JSONRenderer(renderers.JSONRenderer):
 
                 for related_object in relation_queryset:
                     relation_data.append(
-                        OrderedDict([('type', relation_type), ('id', encoding.force_text(related_object.pk))])
+                        OrderedDict([
+                            ('type', relation_type),
+                            ('id', encoding.force_text(related_object.pk))]
+                        )
                     )
 
                 data.update({field_name: {
@@ -141,7 +144,9 @@ class JSONRenderer(renderers.JSONRenderer):
                 relation_id = relation if resource.get(field_name) else None
                 relation_data = {
                     'data': (
-                        OrderedDict([('type', relation_type), ('id', encoding.force_text(relation_id))])
+                        OrderedDict([
+                            ('type', relation_type),
+                            ('id', encoding.force_text(relation_id))])
                         if relation_id is not None else None)
                 }
 
@@ -243,6 +248,18 @@ class JSONRenderer(renderers.JSONRenderer):
         return utils.format_keys(data)
 
     @staticmethod
+    def _extract_lookup_field(serializer):
+
+        if not hasattr(serializer, 'Meta'):
+            return None
+
+        return (
+            serializer.Meta.lookup_field
+            if hasattr(serializer.Meta, 'lookup_field')
+            else None
+        )
+
+    @staticmethod
     def extract_included(fields, resource, resource_instance, included_resources):
         # this function may be called with an empty record (example: Browsable Interface)
         if not resource_instance:
@@ -323,7 +340,8 @@ class JSONRenderer(renderers.JSONRenderer):
                         )
                         included_data.append(
                             JSONRenderer.build_json_resource_obj(
-                                serializer_fields, serializer_resource, nested_resource_instance, resource_type
+                                serializer_fields, serializer_resource, nested_resource_instance, resource_type,
+                                id_replacement=JSONRenderer._extract_lookup_field(serializer)
                             )
                         )
                         included_data.extend(
@@ -341,8 +359,9 @@ class JSONRenderer(renderers.JSONRenderer):
                 if serializer_data:
                     included_data.append(
                         JSONRenderer.build_json_resource_obj(
-                            serializer_fields, serializer_data,
-                            relation_instance, relation_type)
+                            serializer_fields, serializer_data, relation_instance, relation_type,
+                            id_replacement=JSONRenderer._extract_lookup_field(field)
+                        )
                     )
                     included_data.extend(
                         JSONRenderer.extract_included(
@@ -464,6 +483,9 @@ class JSONRenderer(renderers.JSONRenderer):
             # Extract root meta for any type of serializer
             json_api_meta.update(self.extract_root_meta(serializer, serializer_data))
 
+            # Extract lookup_field if any
+            resource_object_id_replacement = JSONRenderer._extract_lookup_field(serializer)
+
             if getattr(serializer, 'many', False):
                 json_api_data = list()
 
@@ -471,7 +493,10 @@ class JSONRenderer(renderers.JSONRenderer):
                     resource = serializer_data[position]  # Get current resource
                     resource_instance = serializer.instance[position]  # Get current instance
 
-                    json_resource_obj = self.build_json_resource_obj(fields, resource, resource_instance, resource_name)
+                    json_resource_obj = self.build_json_resource_obj(
+                        fields, resource, resource_instance, resource_name,
+                        id_replacement=resource_object_id_replacement
+                    )
                     meta = self.extract_meta(serializer, resource)
                     if meta:
                         json_resource_obj.update({'meta': utils.format_keys(meta)})
@@ -484,6 +509,7 @@ class JSONRenderer(renderers.JSONRenderer):
                 resource_instance = serializer.instance
                 json_api_data = self.build_json_resource_obj(
                     fields, serializer_data, resource_instance, resource_name,
+                    id_replacement=resource_object_id_replacement
                 )
 
                 meta = self.extract_meta(serializer, serializer_data)
